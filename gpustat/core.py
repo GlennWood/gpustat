@@ -18,7 +18,7 @@ import platform
 import sys
 from datetime import datetime
 
-from six.moves import cStringIO as StringIO
+from six.moves import StringIO #cStringIO as StringIO
 
 import psutil
 import pynvml as N
@@ -97,6 +97,15 @@ class GPUStat(object):
         Alias of memory_free.
         """
         return self.memory_free
+
+    @property
+    def fanspeed(self):
+        """
+        Returns the fanspeed of GPU as an integer,
+        or None if the information is not available.
+        """
+        v = self.entry['fanspeed']
+        return int(v) if v is not None else None
 
     @property
     def temperature(self):
@@ -288,6 +297,7 @@ class GPUStatCollection(object):
 
             name = _decode(N.nvmlDeviceGetName(handle))
             uuid = _decode(N.nvmlDeviceGetUUID(handle))
+            fanspeed = _decode(N.nvmlDeviceGetFanSpeed(handle))
 
             try:
                 temperature = N.nvmlDeviceGetTemperature(
@@ -349,6 +359,7 @@ class GPUStatCollection(object):
                 'index': index,
                 'uuid': uuid,
                 'name': name,
+                'fanspeed': fanspeed,
                 'temperature.gpu': temperature,
                 'utilization.gpu': utilization.gpu if utilization else None,
                 'power.draw': power // 1000 if power is not None else None,
@@ -366,10 +377,14 @@ class GPUStatCollection(object):
         device_count = N.nvmlDeviceGetCount()
 
         for index in range(device_count):
-            handle = N.nvmlDeviceGetHandleByIndex(index)
-            gpu_info = get_gpu_info(handle)
-            gpu_stat = GPUStat(gpu_info)
-            gpu_list.append(gpu_stat)
+            try:
+                handle = N.nvmlDeviceGetHandleByIndex(index)
+                gpu_info = get_gpu_info(handle)
+                gpu_stat = GPUStat(gpu_info)
+                gpu_list.append(gpu_stat)
+            except:
+                ex = sys.exc_info()
+                print(str(ex), file=sys.stderr)
 
         N.nvmlShutdown()
         return GPUStatCollection(gpu_list)
